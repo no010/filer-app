@@ -1,0 +1,70 @@
+# filer 中性默认配置（baked 进二进制）。
+#
+# 不含任何内部地址/密钥——filer 是本地工具，开源公开发布。
+# watch_dir 与 dest_root 留空，首次启动由用户在设置向导里配置。
+# 规则集在此 baked 为合理默认；后续可在设置里查看（v1 不做规则编辑 UI）。
+#
+# 规则的 dest_template 是相对 dest_root 的子路径（不再有 ${library} 等命名根）。
+# 最终目标 = dest_root \ 展开后的 dest_template。
+
+member = ""
+autostart = true
+timezone = ""                        # 空=系统本地时区；否则 IANA 名如 Asia/Shanghai
+watch_dir = ""                       # 首次启动配，如 C:\Users\You\Downloads
+dest_root = ""                       # 单一归档根目录，如 D:\Filer
+conflict_strategy = "rename"         # rename | skip | overwrite
+default_action = "move"              # move | copy（规则 action 留空则用此值）
+auto_file = false                    # 下载完成是否弹归档确认小窗（true=半自动）
+
+# 规则按顺序匹配，首条命中胜出；misc 兜底放最后。
+# 模板变量：${yyyy}/${yyyy-mm}/${yyyy-mm-dd}（配置时区）；
+# ${vendor}/${title_or_name}/${original_name}/${ext}/${category}。
+
+[[rules]]
+id = "datasheet"
+category = "Datasheet"
+extensions = ["pdf"]
+content_match = "pdf_vendor"
+dest_template = "Datasheets\\${vendor}"
+filename_template = "${title_or_name}.pdf"
+
+[[rules]]
+id = "invoice"
+category = "Receipt"
+keywords = ["发票", "invoice", "receipt", "账单", "收据", "bill"]
+dest_template = "Receipts\\${yyyy-mm}"
+filename_template = "${original_name}"
+
+[[rules]]
+id = "installer"
+category = "Software"
+extensions = ["exe", "msi", "deb", "dmg", "appimage", "pkg", "apk"]
+dest_template = "Software\\Installers"
+filename_template = "${original_name}"
+
+[[rules]]
+id = "screenshot"
+category = "Screenshot"
+extensions = ["png", "jpg", "jpeg", "webp", "bmp"]
+dest_template = "Media\\Screenshots\\${yyyy-mm-dd}"
+filename_template = "${original_name}"
+
+[[rules]]
+id = "document"
+category = "Document"
+extensions = ["docx", "doc", "xlsx", "xls", "pptx", "ppt", "txt", "md", "csv", "pdf"]
+dest_template = "Documents\\${yyyy-mm}"
+filename_template = "${original_name}"
+
+[[rules]]
+id = "archive"
+category = "Archive"
+extensions = ["zip", "7z", "rar", "tar", "gz", "bz2", "xz"]
+dest_template = "Archives\\${yyyy-mm}"
+filename_template = "${original_name}"
+
+[[rules]]
+id = "misc"
+category = "Misc"
+dest_template = "${yyyy-mm}"
+filename_template = "${original_name}"
