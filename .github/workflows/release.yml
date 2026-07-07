@@ -34,12 +34,12 @@ jobs:
 
     runs-on: ${{ matrix.platform }}
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
 
       - name: Install Node
-        uses: actions/setup-node@v4
+        uses: actions/setup-node@v5
         with:
-          node-version: 20
+          node-version: 22
           cache: npm
           cache-dependency-path: ui/package-lock.json
 
@@ -69,25 +69,27 @@ jobs:
       - name: Install Tauri CLI globally (so the action's `tauri` is on PATH)
         run: npm i -g @tauri-apps/cli@^2
 
-      # Optional Apple signing/notarization. Secrets not set → unsigned build.
-      - name: Set Apple signing env
-        if: matrix.platform == 'macos-latest' && github.event_name == 'push'
+      # Optional Apple signing/notarization. Only wire the env when the cert
+      # secret is actually set — tauri-action treats a present-but-empty
+      # APPLE_CERTIFICATE as "sign" and fails `security import`. With no
+      # secret, the step is skipped → unsigned .dmg (users right-click → Open).
+      - name: Wire Apple signing env (only if secrets present)
+        if: matrix.platform == 'macos-latest' && secrets.APPLE_CERTIFICATE != ''
         env:
           APPLE_CERTIFICATE: ${{ secrets.APPLE_CERTIFICATE }}
           APPLE_CERTIFICATE_PASSWORD: ${{ secrets.APPLE_CERTIFICATE_PASSWORD }}
           APPLE_ID: ${{ secrets.APPLE_ID }}
           APPLE_PASSWORD: ${{ secrets.APPLE_PASSWORD }}
           APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
-        run: echo "Apple signing env wired (no-op if secrets empty)."
+        run: |
+          echo "APPLE_CERTIFICATE=$APPLE_CERTIFICATE" >> "$GITHUB_ENV"
+          echo "APPLE_CERTIFICATE_PASSWORD=$APPLE_CERTIFICATE_PASSWORD" >> "$GITHUB_ENV"
+          echo "APPLE_ID=$APPLE_ID" >> "$GITHUB_ENV"
+          echo "APPLE_PASSWORD=$APPLE_PASSWORD" >> "$GITHUB_ENV"
+          echo "APPLE_TEAM_ID=$APPLE_TEAM_ID" >> "$GITHUB_ENV"
 
       - uses: tauri-apps/tauri-action@v0
         env:
-          # Forward Apple signing secrets to the action (only used if present).
-          APPLE_CERTIFICATE: ${{ secrets.APPLE_CERTIFICATE }}
-          APPLE_CERTIFICATE_PASSWORD: ${{ secrets.APPLE_CERTIFICATE_PASSWORD }}
-          APPLE_ID: ${{ secrets.APPLE_ID }}
-          APPLE_PASSWORD: ${{ secrets.APPLE_PASSWORD }}
-          APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         with:
           projectPath: .
