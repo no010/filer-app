@@ -69,24 +69,14 @@ jobs:
       - name: Install Tauri CLI globally (so the action's `tauri` is on PATH)
         run: npm i -g @tauri-apps/cli@^2
 
-      # Optional Apple signing/notarization. Only wire the env when the cert
-      # secret is actually set — tauri-action treats a present-but-empty
-      # APPLE_CERTIFICATE as "sign" and fails `security import`. With no
-      # secret, the step is skipped → unsigned .dmg (users right-click → Open).
-      - name: Wire Apple signing env (only if secrets present)
-        if: matrix.platform == 'macos-latest' && secrets.APPLE_CERTIFICATE != ''
-        env:
-          APPLE_CERTIFICATE: ${{ secrets.APPLE_CERTIFICATE }}
-          APPLE_CERTIFICATE_PASSWORD: ${{ secrets.APPLE_CERTIFICATE_PASSWORD }}
-          APPLE_ID: ${{ secrets.APPLE_ID }}
-          APPLE_PASSWORD: ${{ secrets.APPLE_PASSWORD }}
-          APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
-        run: |
-          echo "APPLE_CERTIFICATE=$APPLE_CERTIFICATE" >> "$GITHUB_ENV"
-          echo "APPLE_CERTIFICATE_PASSWORD=$APPLE_CERTIFICATE_PASSWORD" >> "$GITHUB_ENV"
-          echo "APPLE_ID=$APPLE_ID" >> "$GITHUB_ENV"
-          echo "APPLE_PASSWORD=$APPLE_PASSWORD" >> "$GITHUB_ENV"
-          echo "APPLE_TEAM_ID=$APPLE_TEAM_ID" >> "$GITHUB_ENV"
+      # macOS build ships UNSIGNED by default (users right-click → Open the
+      # first time). To enable signing + notarization, add these as `env` on
+      # the tauri-action step below (and set the secrets in repo settings):
+      #   APPLE_CERTIFICATE / APPLE_CERTIFICATE_PASSWORD (the .p12, base64)
+      #   APPLE_ID / APPLE_PASSWORD / APPLE_TEAM_ID (for notarization)
+      # NOTE: GitHub Actions forbids the `secrets` context in a step `if`, so
+      # only add the env block once the secrets actually exist (an empty
+      # APPLE_CERTIFICATE makes tauri-action attempt `security import` and fail).
 
       - uses: tauri-apps/tauri-action@v0
         env:
