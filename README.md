@@ -1,8 +1,23 @@
 # filer
 
+![release](https://github.com/no010/filer-app/actions/workflows/release.yml/badge.svg)
+![license](https://img.shields.io/badge/license-MIT-blue.svg)
+
 > 监控下载目录 → 自动分析预填建议元信息 → 整理分发到指定目录的特定文件夹。科学/规范/高效地组织下载内容。
 
 filer 是一个本地下载内容整理小工具：它监控你指定的下载目录，文件下载完成后自动识别类型、建议分类/厂商/目标目录/规范化文件名，然后放进"收件箱"等你确认或编辑，确认后按规则移动（或复制）到结构化的归档目录树。所有索引存本地 SQLite，文件本身在本地目录间移动——不上云、不联网、不依赖任何外部服务。
+
+## 截图
+
+> 截图待补。把首启向导、收件箱（含重复下载 4 选项）、回顾 tab、统计仪表盘的截图放进 `screenshots/`，然后在此引用：
+>
+```
+![首启设置](screenshots/first-run.png)
+![收件箱](screenshots/inbox.png)
+![回顾](screenshots/review.png)
+![统计](screenshots/stats.png)
+```
+
 
 ## 特性
 
