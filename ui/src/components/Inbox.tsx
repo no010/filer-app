@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import type { Record as Rec } from "../types";
 import { fileRecord, ignoreRecord, listInbox, onScanProgress, scanNow, setTags, deleteSourceFile } from "../api";
 import type { ScanProgress } from "../api";
@@ -29,6 +29,35 @@ export function Inbox({ refreshKey, onBusy }: { refreshKey: number; onBusy?: (b:
   const [busyId, setBusyId] = useState<number | null>(null);
   const [selected, setSelected] = useState<Set<number>>(new Set());
   const [bulkBusy, setBulkBusy] = useState(false);
+  const [focusIdx, setFocusIdx] = useState<number | null>(null);
+  // Refs so the keydown handler (subscribed once) always sees fresh data.
+  const recordsRef = useRef(records); recordsRef.current = records;
+  const focusIdxRef = useRef(focusIdx); focusIdxRef.current = focusIdx;
+  const reviewingRef = useRef(reviewing); reviewingRef.current = reviewing;
+
+  // Keyboard triage: j/k move focus, f file, i ignore, e edit. Ignored while
+  // typing in an input/textarea/select or when the review modal is open.
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => {
+      const t = e.target as HTMLElement | null;
+      if (t && (t.tagName === "INPUT" || t.tagName === "TEXTAREA" || t.tagName === "SELECT" || t.isContentEditable)) return;
+      if (reviewingRef.current) return;
+      const recs = recordsRef.current;
+      if (recs.length === 0) return;
+      const cur = focusIdxRef.current ?? 0;
+      const r = recs[cur];
+      if (e.key === "j" || e.key === "ArrowDown") { e.preventDefault(); setFocusIdx(Math.min(cur + 1, recs.length - 1)); }
+      else if (e.key === "k" || e.key === "ArrowUp") { e.preventDefault(); setFocusIdx(Math.max(cur - 1, 0)); }
+      else if (e.key === "f" && r && !r.duplicate_of) { e.preventDefault(); quickFile(r); }
+      else if (e.key === "i" && r) { e.preventDefault(); skip(r); }
+      else if (e.key === "e" && r) { e.preventDefault(); setReviewing(r); }
+    };
+    document.addEventListener("keydown", onKey);
+    return () => document.removeEventListener("keydown", onKey);
+    // quickFile/skip are stable enough (useCallback refresh + setters); re-sub
+    // only when record identity changes would matter — keep [] for stable handler.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   const refresh = useCallback(async () => {
     try {
@@ -154,6 +183,7 @@ export function Inbox({ refreshKey, onBusy }: { refreshKey: number; onBusy?: (b:
       <div className="flex items-center justify-between border-b border-slate-200 bg-white px-4 py-2">
         <div className="text-xs text-slate-500">
           {records.length > 0 ? `收件箱 · ${records.length} 项待确认` : "收件箱为空"}
+          {records.length > 0 && <span className="ml-2 text-slate-400">j/k 移动 · f 归档 · i 跳过 · e 编辑</span>}
         </div>
         <button
           onClick={scan}
@@ -197,14 +227,15 @@ export function Inbox({ refreshKey, onBusy }: { refreshKey: number; onBusy?: (b:
             </tr>
           </thead>
           <tbody>
-            {records.map((r) => {
+            {records.map((r, idx) => {
               const m = parse<SubMeta>(r.sub_meta, {});
               const tags = parse<string[]>(r.tags, []);
               const busy = busyId === r.id;
               const typeLabel = m.vendor ? `${m.kind || "?"} · ${m.vendor}` : (m.kind || "?");
               const checked = selected.has(r.id);
+              const focused = focusIdx === idx;
               return (
-                <tr key={r.id} className={`border-b border-slate-100 align-top ${checked ? "bg-blue-50/50" : ""}`}>
+                <tr key={r.id} className={`border-b border-slate-100 align-top ${checked ? "bg-blue-50/50" : ""} ${focused ? "ring-2 ring-inset ring-slate-400" : ""}`}>
                   <td className="py-2 pr-1"><input type="checkbox" checked={checked} onChange={() => toggleSel(r.id)} /></td>
                   <td className="py-2 pr-2">
                     <div className="truncate text-slate-800" style={{ maxWidth: 260 }} title={r.original_filename}>

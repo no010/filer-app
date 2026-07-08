@@ -1,6 +1,9 @@
 import { useEffect, useState } from "react";
+import { getCurrentWebview } from "@tauri-apps/api/webview";
+import { check as checkUpdate, type Update } from "@tauri-apps/plugin-updater";
+import { relaunch } from "@tauri-apps/plugin-process";
 import type { Config, Record as Rec } from "./types";
-import { countStale, getRecord, loadConfig, onAutoFilePrompt, onItemUpdated, onNewInboxItem } from "./api";
+import { countStale, getRecord, importPath, loadConfig, onAutoFilePrompt, onItemUpdated, onNewInboxItem, onProcessError } from "./api";
 import { Inbox } from "./components/Inbox";
 import { History } from "./components/History";
 import { Review } from "./components/Review";
@@ -18,6 +21,16 @@ export default function App() {
   const [refreshKey, setRefreshKey] = useState(0);
   const [staleCount, setStaleCount] = useState(0);
   const [autoQueue, setAutoQueue] = useState<Rec[]>([]);
+  const [toast, setToast] = useState<string | null>(null);
+  const [upd, setUpd] = useState<Update | null>(null);
+  const [updBusy, setUpdBusy] = useState(false);
+
+  // Check for an app update on startup (Tauri updater; signature verified
+  // against the pubkey in tauri.conf.json). Failures are silent — no network
+  // = no update check, not an error.
+  useEffect(() => {
+    checkUpdate().then((u) => { if (u?.available) setUpd(u); }).catch(() => {});
+  }, []);
 
   useEffect(() => {
     loadConfig().then(setCfg).catch(() => setCfg(null));
@@ -28,12 +41,37 @@ export default function App() {
       const r = await getRecord(id);
       if (r) setAutoQueue((q) => [...q, r]);
     });
+    // Processing/scan failures surface as a transient toast.
+    const un4 = onProcessError((p) => {
+      const name = p.path ? p.path.replace(/^.*[\\/]/, "") : "";
+      setToast(`${name}: ${p.message}`);
+    });
+    // Drag-and-drop files onto the window → import each into the inbox.
+    let unDrop: (() => void) | undefined;
+    getCurrentWebview().onDragDropEvent((e: any) => {
+      if (e?.payload?.type === "drop" && e.payload.paths?.length) {
+        let n = 0;
+        for (const p of e.payload.paths as string[]) {
+          importPath(p).then((id) => { if (id != null) n++; }).catch(() => {});
+        }
+        setToast(`已导入 ${e.payload.paths.length} 个文件到收件箱`);
+      }
+    }).then((un: () => void) => { unDrop = un; });
     return () => {
       un1.then((fn) => fn()).catch(() => {});
       un2.then((fn) => fn()).catch(() => {});
       un3.then((fn) => fn()).catch(() => {});
+      un4.then((fn) => fn()).catch(() => {});
+      unDrop?.();
     };
   }, []);
+
+  // Auto-clear the toast after 6s.
+  useEffect(() => {
+    if (!toast) return;
+    const t = setTimeout(() => setToast(null), 6000);
+    return () => clearTimeout(t);
+  }, [toast]);
 
   // Launch banner: count filed files untouched for >180d. Refreshed with the
   // shared refreshKey so acting on an item re-tallies.
@@ -130,6 +168,33 @@ export default function App() {
             setRefreshKey((k) => k + 1);
           }}
         />
+      )}
+
+      {toast && (
+        <div className="fixed bottom-4 right-4 z-50 max-w-md rounded-lg bg-red-600 px-4 py-2 text-sm text-white shadow-lg">
+          {toast}
+        </div>
+      )}
+
+      {upd && (
+        <div className="fixed bottom-4 left-1/2 z-50 -translate-x-1/2 rounded-lg bg-slate-800 px-4 py-2 text-sm text-white shadow-lg">
+          <span className="mr-3">新版本 filer {upd.version} 可用</span>
+          <button
+            disabled={updBusy}
+            onClick={async () => {
+              setUpdBusy(true);
+              try {
+                await upd.downloadAndInstall();
+                await relaunch();
+              } catch (e: any) {
+                setToast(`更新失败：${e.message || e}`);
+                setUpdBusy(false);
+              }
+            }}
+            className="rounded bg-white px-2 py-1 text-xs text-slate-800 hover:bg-slate-100 disabled:opacity-40"
+          >{updBusy ? "下载安装中…" : "下载并重启"}</button>
+          <button onClick={() => setUpd(null)} className="ml-2 text-slate-400 hover:text-white">稍后</button>
+        </div>
       )}
     </div>
   );

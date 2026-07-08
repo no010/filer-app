@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 import type { Config } from "../types";
-import { pickFolder, saveConfig } from "../api";
+import { pickFolder, removeContextMenu, saveConfig } from "../api";
 import { RulesEditor } from "./RulesEditor";
 
 const COMMON_TZ = [
@@ -144,6 +144,13 @@ export function SettingsModal(props: {
                 <span className="text-slate-400">关闭则新文件静默进收件箱待手动处理</span>
               </span>
             </label>
+            <div className="mt-3 flex items-center gap-2 text-xs">
+              <button
+                onClick={() => removeContextMenu().then(() => setErr("右键菜单已移除")).catch((e) => setErr(e.message || String(e)))}
+                className="rounded bg-slate-100 px-2 py-1 text-slate-600 hover:bg-slate-200"
+              >移除右键「用 filer 归档」</button>
+              <span className="text-slate-400">卸载时会自动清理；这里可手动移除。</span>
+            </div>
           </Section>
 
           {/* 规则编辑 */}

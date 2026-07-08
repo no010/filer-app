@@ -34,6 +34,12 @@ export const ignoreRecord = (id: number): Promise<void> => invoke("ignore_record
 export const undoFile = (id: number): Promise<void> => invoke("undo_file", { id });
 export const deleteRecord = (id: number): Promise<void> => invoke("delete_record", { id });
 export const deleteSourceFile = (id: number): Promise<void> => invoke("delete_source_file", { id });
+
+/** Import a file from an arbitrary path (drag-drop / right-click). */
+export const importPath = (path: string): Promise<number | null> => invoke("import_path", { path });
+
+/** Remove the "用 filer 归档" right-click entry (HKCU). */
+export const removeContextMenu = (): Promise<void> => invoke("remove_context_menu");
 export function setTags(id: number, tags: string[]): Promise<void> {
   return invoke("set_tags", { id, tags });
 }
@@ -68,4 +74,9 @@ export function onItemUpdated(cb: (id: number) => void): Promise<UnlistenFn> {
 export interface ScanProgress { processed: number; total: number; added: number; }
 export function onScanProgress(cb: (p: ScanProgress) => void): Promise<UnlistenFn> {
   return listen<ScanProgress>("scan-progress", (e) => cb(e.payload));
+}
+
+export interface ProcessError { path: string; message: string; }
+export function onProcessError(cb: (p: ProcessError) => void): Promise<UnlistenFn> {
+  return listen<ProcessError>("process-error", (e) => cb(e.payload));
 }

@@ -81,6 +81,11 @@ jobs:
       - uses: tauri-apps/tauri-action@v0
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          # Tauri updater signing — produces the signed .sig + latest.json
+          # manifest the app checks on startup. Private key is a repo secret;
+          # if absent, the build still works but auto-update is disabled.
+          TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
+          TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY_PASSWORD }}
         with:
           projectPath: .
           tagName: ${{ github.ref_name }}
@@ -88,4 +93,7 @@ jobs:
           releaseBody: "See the assets below to download and install. macOS: .dmg (unsigned → right-click → Open first time). Windows: .exe (NSIS) / .msi. Linux: .AppImage / .deb."
           releaseDraft: true
           prerelease: false
+          # Generate the updater manifest (latest.json) so the in-app updater
+          # can find the newest release.
+          updaterJsonPreferNsis: true
           args: ${{ matrix.args }}

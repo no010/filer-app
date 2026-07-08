@@ -126,6 +126,32 @@ pub async fn undo_file(app: tauri::AppHandle, id: i64) -> Result<(), String> {
     filer::undo(app, id).await.map_err(|e| e.to_string())
 }
 
+/// Import a file from an arbitrary path (drag-drop onto the window, or right-
+/// click "归档到 filer"). Analyzes + rule-matches + inserts into the inbox.
+#[tauri::command]
+pub async fn import_path(app: tauri::AppHandle, path: String) -> Result<Option<i64>, String> {
+    let p = std::path::PathBuf::from(&path);
+    if !p.is_file() {
+        return Err(format!("不是文件或不存在：{path}"));
+    }
+    Ok(watcher::process_path(app, p).await)
+}
+
+/// Remove the "用 filer 归档" right-click entry (HKCU, all files). Manual
+/// fallback for the NSIS uninstall hook — callable from Settings.
+#[tauri::command]
+pub async fn remove_context_menu() -> Result<(), String> {
+    #[cfg(target_os = "windows")]
+    {
+        std::process::Command::new("reg")
+            .args(["delete", r"HKCU\Software\Classes\*\shell\filer", "/f"])
+            .status()
+            .map_err(|e| e.to_string())?;
+    }
+    let _ = ();
+    Ok(())
+}
+
 #[tauri::command]
 pub async fn set_tags(
     app: tauri::AppHandle,
@@ -163,7 +189,10 @@ pub async fn delete_source_file(state: State<'_, AppState>, id: i64) -> Result<(
         let p = path.clone();
         let _ = tokio::task::spawn_blocking(move || -> std::io::Result<()> {
             if std::path::Path::new(&p).exists() {
-                let _ = std::fs::remove_file(&p);
+                // Send to OS trash (recoverable) instead of permanent delete.
+                if trash::delete(&p).is_err() {
+                    let _ = std::fs::remove_file(&p);
+                }
             }
             Ok(())
         }).await;
@@ -242,7 +271,10 @@ pub async fn delete_filed_file(state: State<'_, AppState>, app: tauri::AppHandle
         let p = path.clone();
         let _ = tokio::task::spawn_blocking(move || -> std::io::Result<()> {
             if std::path::Path::new(&p).exists() {
-                let _ = std::fs::remove_file(&p);
+                // Send to OS trash (recoverable) instead of permanent delete.
+                if trash::delete(&p).is_err() {
+                    let _ = std::fs::remove_file(&p);
+                }
             }
             Ok(())
         }).await;

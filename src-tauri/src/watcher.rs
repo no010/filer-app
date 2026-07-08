@@ -201,32 +201,44 @@ pub async fn process_path(app: AppHandle, path: PathBuf) -> Option<i64> {
     // Duplicate check: this exact path already recorded → skip.
     {
         let s = app.state::<AppState>();
-        let guard = s.store().ok()?;
+        let guard = match s.store() {
+            Ok(g) => g,
+            Err(e) => {
+                emit_err(&app, &path_str, &format!("打开数据库失败: {e}"));
+                return None;
+            }
+        };
         let store = guard.as_ref().unwrap();
         if store.exists_for_path(&path_str).unwrap_or(false) {
             return None;
         }
     }
 
-    let cfg = { let s = app.state::<AppState>(); s.load_cfg().ok()? };
+    let cfg = match { let s = app.state::<AppState>(); s.load_cfg() } {
+        Ok(c) => c,
+        Err(e) => {
+            emit_err(&app, &path_str, &format!("读取配置失败: {e}"));
+            return None;
+        }
+    };
     let tz = cfg.tz();
     let auto_file = cfg.auto_file;
 
     // Stream-analyze off the async thread. analyze_file reads only 512 B for
     // magic + hashes in chunks, so a multi-GB file can't OOM or hang here.
     let path_for_blocking = path.clone();
-    let pr = tokio::task::spawn_blocking(move || -> Option<ProcessResult> {
+    let pr = match tokio::task::spawn_blocking(move || -> anyhow::Result<ProcessResult> {
         let filename = path_for_blocking
             .file_name()
             .and_then(|n| n.to_str())
             .unwrap_or("")
             .to_string();
-        let (sha, meta) = analyze::analyze_file(&path_for_blocking, &filename).ok()?;
+        let (sha, meta) = analyze::analyze_file(&path_for_blocking, &filename)?;
         let size = std::fs::metadata(&path_for_blocking).map(|m| m.len() as i64).unwrap_or(0);
         let ext = meta.ext.clone();
         let suggestion = rules::match_first(&cfg.rules, &filename, &ext, &meta)
             .map(|r| rules::build_suggestion(r, &cfg, &meta, &filename));
-        Some(ProcessResult {
+        Ok(ProcessResult {
             sha,
             meta,
             filename,
@@ -235,7 +247,17 @@ pub async fn process_path(app: AppHandle, path: PathBuf) -> Option<i64> {
         })
     })
     .await
-    .ok()??;
+    {
+        Ok(Ok(pr)) => pr,
+        Ok(Err(e)) => {
+            emit_err(&app, &path_str, &format!("分析失败: {e}"));
+            return None;
+        }
+        Err(e) => {
+            emit_err(&app, &path_str, &format!("分析任务异常: {e}"));
+            return None;
+        }
+    };
 
     let now = timeutil::now_rfc3339(tz);
     let sub_meta_json = serde_json::to_string(&pr.meta).unwrap_or_else(|_| "{}".into());
@@ -246,7 +268,13 @@ pub async fn process_path(app: AppHandle, path: PathBuf) -> Option<i64> {
 
     let id = {
         let s = app.state::<AppState>();
-        let guard = s.store().ok()?;
+        let guard = match s.store() {
+            Ok(g) => g,
+            Err(e) => {
+                emit_err(&app, &path_str, &format!("打开数据库失败: {e}"));
+                return None;
+            }
+        };
         let store = guard.as_ref().unwrap();
         // Re-check under the lock to avoid a race with a concurrent event.
         if store.exists_for_path(&path_str).unwrap_or(false) {
@@ -276,7 +304,7 @@ pub async fn process_path(app: AppHandle, path: PathBuf) -> Option<i64> {
         match store.insert_inbox(&nr) {
             Ok(id) => id,
             Err(e) => {
-                eprintln!("[watcher] insert failed for {}: {e}", nr.original_path);
+                emit_err(&app, &nr.original_path, &format!("写入收件箱失败: {e}"));
                 return None;
             }
         }
@@ -324,7 +352,7 @@ pub async fn scan_now(app: AppHandle, watch_dir: String) -> anyhow::Result<usize
             Ok(Some(_id)) => added += 1,
             Ok(None) => {} // skipped (duplicate path / read error / not new)
             Err(_elapsed) => {
-                eprintln!("[scan] timeout on {}, skipping", p.display());
+                emit_err(&app, &p.to_string_lossy(), "扫描超时（60s），已跳过");
             }
         }
         let _ = app.emit("scan-progress", ScanProgress {
@@ -341,6 +369,21 @@ struct ScanProgress {
     processed: usize,
     total: usize,
     added: usize,
+}
+
+#[derive(Serialize, Clone)]
+struct ProcessError {
+    path: String,
+    message: String,
+}
+
+/// Surface a processing/scan failure to the UI as a non-blocking toast.
+fn emit_err(app: &AppHandle, path: &str, message: &str) {
+    eprintln!("[watcher] {path}: {message}");
+    let _ = app.emit("process-error", ProcessError {
+        path: path.to_string(),
+        message: message.to_string(),
+    });
 }
 
 #[cfg(test)]

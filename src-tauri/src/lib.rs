@@ -106,6 +106,8 @@ pub fn run() {
             Some(vec!["--autostart"]),
         ))
         .plugin(tauri_plugin_dialog::init())
+        .plugin(tauri_plugin_updater::Builder::new().build())
+        .plugin(tauri_plugin_process::init())
         .setup(|app| {
             let cfg_dir = app.path().app_config_dir()?;
             std::fs::create_dir_all(&cfg_dir).ok();
@@ -159,6 +161,8 @@ pub fn run() {
             commands::file_record,
             commands::ignore_record,
             commands::undo_file,
+            commands::import_path,
+            commands::remove_context_menu,
             commands::set_tags,
             commands::delete_record,
             commands::delete_source_file,

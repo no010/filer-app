@@ -107,12 +107,18 @@ pub async fn file(app: AppHandle, id: i64, overrides: FileOverrides) -> anyhow::
                 return Ok(FileResult { filed_path: prior_path, duplicate_of: Some(dup_id), skipped: true });
             }
             "replace" => {
-                // Delete the prior filed file, mark it replaced, then file the
-                // new one normally (to its own suggested dest).
+                // Send the prior filed file to the OS trash (recoverable) and
+                // mark it replaced, then file the new one normally. Undo of
+                // replace stays disabled — the old file is in trash, user can
+                // restore manually, but filer can't auto-restore it.
                 let pp = prior_path.clone();
                 let _ = tokio::task::spawn_blocking(move || -> std::io::Result<()> {
                     if !pp.is_empty() && Path::new(&pp).exists() {
-                        let _ = std::fs::remove_file(&pp);
+                        // Prefer OS trash (recoverable); fall back to permanent
+                        // delete only if trash is unavailable on this platform.
+                        if trash::delete(&pp).is_err() {
+                            let _ = std::fs::remove_file(&pp);
+                        }
                     }
                     Ok(())
                 }).await;
@@ -240,8 +246,11 @@ pub async fn undo(app: AppHandle, id: i64) -> anyhow::Result<()> {
         }
         match action.as_str() {
             "copy" => {
-                // Undo of a copy = remove the copied file.
-                std::fs::remove_file(filed)?;
+                // Undo of a copy = remove the copied file (to trash so it's
+                // recoverable in case the undo was a mistake).
+                if trash::delete(filed).is_err() {
+                    std::fs::remove_file(filed)?;
+                }
             }
             _ => {
                 // Undo of a move = move it back to original_path (rename-safe).

@@ -7,6 +7,8 @@
     "core:default",
     "dialog:default",
     "autostart:default",
-    "core:event:default"
+    "core:event:default",
+    "updater:default",
+    "process:default"
   ]
 }
