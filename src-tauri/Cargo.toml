@@ -1,6 +1,6 @@
 [package]
 name = "filer"
-version = "0.1.1"
+version = "0.1.2"
 description = "filer — watch a download dir, auto-suggest metadata, organize files into structured folders"
 edition = "2021"
 license = "MIT"
