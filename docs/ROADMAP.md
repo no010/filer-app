@@ -8,7 +8,7 @@
 - ✅ **A3 错误事件到 UI**：watcher/scan 失败 emit `process-error`，UI 弹 toast，不再静默。
 - ✅ **A6 卸载清右键菜单**：NSIS `POSTUNINSTALL` 钩子删 `HKCU\*\shell\filer` + 设置里"移除右键菜单"按钮。
 - ⬜ **同路径重下载内容变了要重新入箱**：`exists_for_path` 命中后比 mtime/size，变了当新文件（watcher.rs）。
-- ⬜ **`scan_now` 超时按文件大小动态算**：现在固定 60s，50GB+ 文件会被误跳（watcher.rs:322）。
+- ✅ **A5 超大文件去重**：>1GB 用稀疏多点指纹（K 个 head→tail 均匀 1MB 窗口，`partial:{size}:{k}:{hash}`），50GB ~1s；≤1GB 仍全量 sha256。原 60s 超时不再误跳大文件。
 - ⬜ **跨卷 move 的 copy+delete 非原子**：源删除失败时回滚删目标副本（filer.rs `move_file`）。
 - ⬜ **`mark_replaced` 保留审计**：加 `replaced_by` 列，不清 filed_path，历史可见"被 #N 替换"。
 - ⬜ **DB schema 版本表**：现在只有 `ensure_column` 加列；以后改类型/改名需要正规迁移（`refinery` 或手写 version 表）。
