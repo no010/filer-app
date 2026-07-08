@@ -209,7 +209,7 @@ pub async fn process_path(app: AppHandle, path: PathBuf) -> Option<i64> {
             }
         };
         let store = guard.as_ref().unwrap();
-        if store.exists_for_path(&path_str).unwrap_or(false) {
+        if store.path_pending(&path_str).unwrap_or(false) {
             return None;
         }
     }
@@ -277,7 +277,7 @@ pub async fn process_path(app: AppHandle, path: PathBuf) -> Option<i64> {
         };
         let store = guard.as_ref().unwrap();
         // Re-check under the lock to avoid a race with a concurrent event.
-        if store.exists_for_path(&path_str).unwrap_or(false) {
+        if store.path_pending(&path_str).unwrap_or(false) {
             return None;
         }
         // Dedup: is there already a filed record with the same content hash?

@@ -193,12 +193,16 @@ impl Store {
         Ok(r)
     }
 
-    /// Has this exact original_path already been recorded (avoid re-inserting
-    /// the same file on every scan)?
-    pub fn exists_for_path(&self, original_path: &str) -> anyhow::Result<bool> {
+    /// Is there a PENDING record (status inbox/ignored) for this path? Such a
+    /// record means the file is still sitting in the download dir (either
+    /// awaiting triage or dismissed by the user) → don't re-insert on scan.
+    /// Filed/deleted/missing records do NOT block: a filed file was moved out
+    /// (path is free for a re-download), so a new file at the same path must be
+    /// re-processed and dedup'd by content hash (find_filed_by_sha).
+    pub fn path_pending(&self, original_path: &str) -> anyhow::Result<bool> {
         let conn = self.conn.lock().unwrap();
         let n: i64 = conn.query_row(
-            "SELECT COUNT(*) FROM records WHERE original_path = ?1",
+            "SELECT COUNT(*) FROM records WHERE original_path = ?1 AND status IN ('inbox','ignored')",
             params![original_path],
             |r| r.get(0),
         )?;
@@ -598,11 +602,15 @@ mod tests {
     }
 
     #[test]
-    fn exists_for_path() {
+    fn path_pending() {
         let (s, _f) = tmp_store();
-        assert!(!s.exists_for_path("C:\\DL\\a.pdf").unwrap());
-        s.insert_inbox(&nr("a", "C:\\DL\\a.pdf", 0)).unwrap();
-        assert!(s.exists_for_path("C:\\DL\\a.pdf").unwrap());
+        assert!(!s.path_pending("C:\\DL\\a.pdf").unwrap());
+        // inbox → blocks re-scan (file still pending in download dir)
+        let id = s.insert_inbox(&nr("a", "C:\\DL\\a.pdf", 0)).unwrap();
+        assert!(s.path_pending("C:\\DL\\a.pdf").unwrap());
+        // once filed (moved out), the path is free for a re-download → NOT blocked
+        s.mark_filed(id, "D:\\Filer\\a.pdf", "t", "move", "M", "[]", "t").unwrap();
+        assert!(!s.path_pending("C:\\DL\\a.pdf").unwrap(), "filed record must not block a re-download at the same path");
     }
 
     #[test]
