@@ -1,0 +1,93 @@
+<!doctype html>
+<html lang="zh-CN"><head><meta charset="UTF-8">
+<script src="https://cdn.tailwindcss.com"></script>
+<title>filer · 收件箱</title>
+<style>body{margin:0;font-family:system-ui,-apple-system,"Segoe UI",sans-serif}</style>
+</head><body>
+<div class="flex h-screen flex-col">
+  <header class="flex items-center justify-between border-b border-slate-200 bg-white px-4 py-2">
+    <div class="flex items-center gap-2">
+      <span class="text-base font-semibold text-slate-800">filer</span>
+      <span class="text-xs text-slate-400">下载整理</span>
+    </div>
+    <div class="flex items-center gap-3 text-xs">
+      <span class="text-slate-500">Peter</span>
+      <button class="rounded bg-slate-100 px-2 py-1 text-slate-600">设置</button>
+    </div>
+  </header>
+  <nav class="flex gap-1 border-b border-slate-200 bg-white px-4">
+    <button class="-mb-px border-b-2 border-slate-800 px-3 py-2 text-sm text-slate-800">收件箱</button>
+    <button class="-mb-px border-b-2 border-transparent px-3 py-2 text-sm text-slate-400">历史</button>
+    <button class="-mb-px border-b-2 border-transparent px-3 py-2 text-sm text-slate-400">搜索</button>
+    <button class="-mb-px border-b-2 border-transparent px-3 py-2 text-sm text-slate-400">回顾 · 3</button>
+    <button class="-mb-px border-b-2 border-transparent px-3 py-2 text-sm text-slate-400">统计</button>
+  </nav>
+  <div class="flex h-full flex-col bg-slate-50">
+    <div class="flex items-center justify-between border-b border-slate-200 bg-white px-4 py-2">
+      <div class="text-xs text-slate-500">收件箱 · 3 项待确认<span class="ml-2 text-slate-400">j/k 移动 · f 归档 · i 跳过 · e 编辑</span></div>
+      <button class="rounded bg-slate-100 px-2 py-1 text-xs text-slate-600">立即扫描下载目录</button>
+    </div>
+    <div class="flex-1 overflow-y-auto px-4 py-2">
+      <table class="w-full text-left text-sm">
+        <thead class="text-xs text-slate-400">
+          <tr class="border-b border-slate-200">
+            <th class="py-2 pr-1 w-8"><input type="checkbox"></th>
+            <th class="py-2 pr-2 font-medium">文件名</th>
+            <th class="px-2 font-medium">类型</th>
+            <th class="px-2 font-medium">大小</th>
+            <th class="px-2 font-medium">分类</th>
+            <th class="px-2 font-medium">建议目标</th>
+            <th class="px-2 font-medium">标签</th>
+            <th class="px-2 font-medium text-right">操作</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr class="border-b border-slate-100 align-top bg-blue-50/40 ring-2 ring-inset ring-slate-400">
+            <td class="py-2 pr-1"><input type="checkbox"></td>
+            <td class="py-2 pr-2"><div class="truncate text-slate-800" style="max-width:220px">STM32F103C8 Datasheet.pdf</div><div class="text-[11px] text-slate-400">1e54ce18a3f9…</div></td>
+            <td class="px-2 text-slate-600">pdf · ST<div class="text-[11px] text-slate-400">72 页</div></td>
+            <td class="px-2 text-slate-600">1.9 MB</td>
+            <td class="px-2 text-slate-600">Datasheet</td>
+            <td class="px-2 text-slate-500 break-all" style="max-width:220px">D:\Filer\Datasheets\ST<div class="text-[11px] text-slate-400">→ STM32F103C8 Datasheet.pdf</div></td>
+            <td class="px-2"><span class="inline-flex items-center rounded bg-blue-50 px-1.5 py-0.5 text-[11px] text-blue-700">mcu</span></td>
+            <td class="px-2 text-right"><div class="inline-flex gap-1">
+              <button class="rounded bg-slate-800 px-2 py-1 text-xs text-white">归档</button>
+              <button class="rounded bg-slate-100 px-2 py-1 text-xs text-slate-600">编辑</button>
+              <button class="rounded bg-slate-100 px-2 py-1 text-xs text-slate-400">跳过</button>
+            </div></td>
+          </tr>
+          <tr class="border-b border-slate-100 align-top">
+            <td class="py-2 pr-1"><input type="checkbox"></td>
+            <td class="py-2 pr-2"><div class="truncate text-slate-800" style="max-width:220px">发票_2026-07.pdf</div><div class="text-[11px] text-slate-400">9a21ff…  ⚠ 与 #2 内容相同</div></td>
+            <td class="px-2 text-slate-600">pdf</td>
+            <td class="px-2 text-slate-600">88 KB</td>
+            <td class="px-2 text-amber-600">⚠ 与 #2 重复</td>
+            <td class="px-2 text-slate-500 break-all" style="max-width:220px">D:\Filer\Receipts\2026-07</td>
+            <td class="px-2"></td>
+            <td class="px-2 text-right"><div class="inline-flex flex-wrap gap-1 justify-end">
+              <button class="rounded bg-slate-100 px-2 py-1 text-xs text-slate-600">跳过</button>
+              <button class="rounded bg-slate-100 px-2 py-1 text-xs text-slate-600">保留两者</button>
+              <button class="rounded bg-amber-100 px-2 py-1 text-xs text-amber-700">替换</button>
+              <button class="rounded bg-red-100 px-2 py-1 text-xs text-red-700">删除新文件</button>
+            </div></td>
+          </tr>
+          <tr class="border-b border-slate-100 align-top">
+            <td class="py-2 pr-1"><input type="checkbox"></td>
+            <td class="py-2 pr-2"><div class="truncate text-slate-800" style="max-width:220px">VSCodeUserSetup-x64-1.95.exe</div><div class="text-[11px] text-slate-400">partial:9734…</div></td>
+            <td class="px-2 text-slate-600">other</td>
+            <td class="px-2 text-slate-600">98 MB</td>
+            <td class="px-2 text-slate-600">Software</td>
+            <td class="px-2 text-slate-500 break-all" style="max-width:220px">D:\Filer\Software\Installers</td>
+            <td class="px-2"></td>
+            <td class="px-2 text-right"><div class="inline-flex gap-1">
+              <button class="rounded bg-slate-800 px-2 py-1 text-xs text-white">归档</button>
+              <button class="rounded bg-slate-100 px-2 py-1 text-xs text-slate-600">编辑</button>
+              <button class="rounded bg-slate-100 px-2 py-1 text-xs text-slate-400">跳过</button>
+            </div></td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+  </div>
+</div>
+</body></html>
