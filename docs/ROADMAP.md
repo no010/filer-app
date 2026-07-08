@@ -7,7 +7,7 @@
 - ✅ **A1+A2 安全删除**：`delete_filed_file` / `delete_source_file` / replace 改送 OS 回收站（`trash` crate），不再永久删。
 - ✅ **A3 错误事件到 UI**：watcher/scan 失败 emit `process-error`，UI 弹 toast，不再静默。
 - ✅ **A6 卸载清右键菜单**：NSIS `POSTUNINSTALL` 钩子删 `HKCU\*\shell\filer` + 设置里"移除右键菜单"按钮。
-- ⬜ **同路径重下载内容变了要重新入箱**：`exists_for_path` 命中后比 mtime/size，变了当新文件（watcher.rs）。
+- ✅ **A4 同路径重下载不再被吞**：`exists_for_path` → `path_pending`，只对 status=inbox/ignored 的记录跳过；filed/deleted/missing 的路径放行，重新哈希 + 按 sha 判重（同内容→duplicate_of，新版本→新条目）。
 - ✅ **A5 超大文件去重**：>1GB 用稀疏多点指纹（K 个 head→tail 均匀 1MB 窗口，`partial:{size}:{k}:{hash}`），50GB ~1s；≤1GB 仍全量 sha256。原 60s 超时不再误跳大文件。
 - ⬜ **跨卷 move 的 copy+delete 非原子**：源删除失败时回滚删目标副本（filer.rs `move_file`）。
 - ⬜ **`mark_replaced` 保留审计**：加 `replaced_by` 列，不清 filed_path，历史可见"被 #N 替换"。
