@@ -63,8 +63,12 @@ jobs:
             libjavascriptcoregtk-4.1-dev
 
       - name: Install frontend deps
+        # `npm install` (not `npm ci`) — the lockfile is generated on Windows
+        # and may miss platform-specific optional deps (e.g. @img/sharp /
+        # @emnapi variants) that linux/mac need. `npm install` resolves per-
+        # platform; `npm ci` would hard-fail on the missing entries.
         working-directory: ui
-        run: npm ci
+        run: npm install --no-audit --no-fund
 
       - name: Install Tauri CLI globally (so the action's `tauri` is on PATH)
         run: npm i -g @tauri-apps/cli@^2
