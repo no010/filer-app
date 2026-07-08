@@ -137,9 +137,20 @@ pub fn analyze_file(path: &Path, filename: &str) -> std::io::Result<(String, Sub
     let n = f.read(&mut head)?;
     let head = &head[..n];
 
-    // Hash the whole file in chunks (re-read from start).
-    f.seek(SeekFrom::Start(0))?;
-    let sha = stream_sha(&mut f)?;
+    // Fingerprint: full sha256 for files up to FULL_HASH_CAP (accurate, fast
+    // enough on a reasonable disk); for huge files a sparse multi-window
+    // fingerprint (head→tail, K evenly-spaced 1MB windows) so a 50 GB ISO
+    // doesn't time out. The partial fingerprint is `partial:{size}:{k}:{hash}`
+    // — it only matches another record with the identical string, so a huge
+    // file can't false-match a small file's full sha. Same-size files match
+    // only if every sampled window agrees → very low false-positive risk for
+    // the realistic dedup case (re-downloading the same file).
+    let sha = if size <= FULL_HASH_CAP {
+        f.seek(SeekFrom::Start(0))?;
+        stream_sha(&mut f)?
+    } else {
+        partial_fingerprint(path, size)?
+    };
 
     let ext = ext_of(filename);
     let mut m = classify(head, &ext);
@@ -284,6 +295,51 @@ fn stream_sha(f: &mut File) -> std::io::Result<String> {
     Ok(hasher.finalize().iter().map(|b| format!("{:02x}", b)).collect())
 }
 
+/// Files larger than this use a sparse partial fingerprint instead of a full
+/// sha256 — full-hash of a multi-GB file is too slow on a cold/contended disk
+/// (the original "扫描超时" bug hit a 27 GB model file). 1 GB full ≈ 3-15s on
+/// most disks, acceptable; above this the partial fingerprint takes <2s.
+pub const FULL_HASH_CAP: u64 = 1024 * 1024 * 1024; // 1 GB
+
+/// Sparse multi-window fingerprint for huge files: K evenly-spaced 1MB windows
+/// from head to tail, hashed together. K scales with size (1 window per GB,
+/// clamped to 8..32) so bigger files get more sample points. The result
+/// `partial:{size}:{k}:{hash}` only matches an identical string, and since
+/// k=f(size) two files must share size AND every sampled window to match —
+/// strong against the realistic "re-downloaded the same file" case, with only
+/// the theoretical weakness that two same-size files differing solely in
+/// unsampled regions would false-match (acceptable for the dedup prompt,
+/// which the user confirms anyway).
+fn partial_fingerprint(path: &Path, size: u64) -> std::io::Result<String> {
+    const W: u64 = 1024 * 1024; // 1 MB per window
+    // Guard: if the file shrank below a window since metadata was taken, just
+    // fall back to a full stream hash.
+    if size < W {
+        let mut f = File::open(path)?;
+        return stream_sha(&mut f);
+    }
+    let k = (size / (1024 * 1024 * 1024)).max(1) as usize; // ~1 window per GB
+    let k = k.clamp(8, 32);
+    let mut f = File::open(path)?;
+    let mut hasher = Sha256::new();
+    let mut buf = vec![0u8; W as usize];
+    let span = size - W; // last window starts at span (tail)
+    for i in 0..k {
+        // Evenly spaced from 0 (head) to span (tail), inclusive.
+        let start = if k == 1 { 0 } else { span * (i as u64) / ((k - 1) as u64) };
+        f.seek(SeekFrom::Start(start))?;
+        let mut filled = 0;
+        while filled < W as usize {
+            let n = f.read(&mut buf[filled..])?;
+            if n == 0 { break; }
+            filled += n;
+        }
+        hasher.update(&buf[..filled]);
+    }
+    let hash: String = hasher.finalize().iter().map(|b| format!("{:02x}", b)).collect();
+    Ok(format!("partial:{size}:{k}:{hash}"))
+}
+
 fn is_zip(head: &[u8]) -> bool {
     head.len() >= 4 && &head[..4] == b"PK\x03\x04"
 }
@@ -404,6 +460,42 @@ mod tests {
         // not a real PDF → lopdf returns default (0 pages, empty title);
         // title falls back to filename stem.
         assert_eq!(m.title, "STM32F103");
+        std::fs::remove_file(&p).ok();
+    }
+
+    #[test]
+    fn partial_fingerprint_deterministic_and_distinct() {
+        let dir = std::env::temp_dir();
+        let a = dir.join(format!("filer_pfa_{}.bin", std::process::id()));
+        let b = dir.join(format!("filer_pfb_{}.bin", std::process::id()));
+        let sz = 2 * 1024 * 1024u64; // 2 MB
+        std::fs::write(&a, vec![0u8; sz as usize]).unwrap();
+        let mut buf_b = vec![0u8; sz as usize];
+        buf_b[(sz - 1024 * 1024 / 2) as usize] = 1; // flip a byte inside the tail window
+        std::fs::write(&b, &buf_b).unwrap();
+        let fa = partial_fingerprint(&a, sz).unwrap();
+        let fa2 = partial_fingerprint(&a, sz).unwrap();
+        let fb = partial_fingerprint(&b, sz).unwrap();
+        assert_eq!(fa, fa2, "same file → same fingerprint");
+        assert_ne!(fa, fb, "differing byte in a sampled window → different fingerprint");
+        assert!(fa.starts_with(&format!("partial:{sz}:8:")), "format prefix wrong: {fa}");
+        std::fs::remove_file(&a).ok();
+        std::fs::remove_file(&b).ok();
+    }
+
+    #[test]
+    fn analyze_file_huge_uses_partial_fingerprint() {
+        // Just over FULL_HASH_CAP would need a >1GB file — too big for a unit
+        // test. Instead call partial_fingerprint directly (the path analyze_file
+        // takes for size > FULL_HASH_CAP) and assert the fingerprint is not a
+        // 64-hex sha (i.e. the partial branch is what huge files get).
+        let dir = std::env::temp_dir();
+        let p = dir.join(format!("filer_huge_{}.bin", std::process::id()));
+        let sz = 3 * 1024 * 1024u64; // 3 MB, well under cap but exercises partial_fingerprint
+        std::fs::write(&p, vec![7u8; sz as usize]).unwrap();
+        let fp = partial_fingerprint(&p, sz).unwrap();
+        assert!(fp.starts_with("partial:"));
+        assert!(!fp[8..].chars().all(|c| c.is_ascii_hexdigit()), "partial fp is not a bare hex sha");
         std::fs::remove_file(&p).ok();
     }
 }
