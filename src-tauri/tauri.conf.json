@@ -1,7 +1,7 @@
 {
   "$schema": "https://schema.tauri.app/config/2",
   "productName": "filer",
-  "version": "0.1.2",
+  "version": "0.1.3",
   "identifier": "com.filer.app",
   "build": {
     "frontendDist": "../ui/dist",
@@ -27,7 +27,7 @@
   },
   "plugins": {
     "updater": {
-      "pubkey": "dW50cnVzdGVkIGNvbW1lbnQ6IG1pbmlzaWduIHB1YmxpYyBrZXk6IDEyNDZCMkI3Q0QzMUYxOUYKUldTZjhUSE50N0pHRW9ZU3pGN0FsYkRzbnAvRVMxQ25ETE9SaWlicmZpWVF6RlF4Z241b2MxanIK",
+      "pubkey": "dW50cnVzdGVkIGNvbW1lbnQ6IG1pbmlzaWduIHB1YmxpYyBrZXk6IDNBOUVBNjE5QjAwREE3M0YKUldRL3B3MndHYWFlT2syUUZkZElYemxpK215ZXBXeVNTVWtHcEVud2d1V1JzcGdYYVRsZE5TMUcK",
       "endpoints": [
         "https://github.com/no010/filer-app/releases/latest/download/latest.json"
       ]

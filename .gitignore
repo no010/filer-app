@@ -7,5 +7,6 @@ gen/
 *.db-wal
 *.db-shm
 
-# Tauri updater private key (DO NOT commit)
+# Tauri updater private key + password backup (DO NOT commit)
 src-tauri/filer-updater.key
+src-tauri/filer-updater.key.pw
