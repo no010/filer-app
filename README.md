@@ -1,6 +1,6 @@
 # filer
 
-![release](https://github.com/no010/filer-app/actions/workflows/release.yml/badge.svg)
+![release](https://img.shields.io/github/v/release/no010/filer-app?label=release)
 ![license](https://img.shields.io/badge/license-MIT-blue.svg)
 
 > 监控下载目录 → 自动分析预填建议元信息 → 整理分发到指定目录的特定文件夹。科学/规范/高效地组织下载内容。
