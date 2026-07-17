@@ -14,6 +14,8 @@ export interface Rule {
 export interface Config {
   member: string;
   autostart: boolean;
+  minimize_to_tray: boolean; // close button hides to tray instead of quitting
+  tray_prompted: boolean; // internal: first-close prompt shown & choice recorded (preserved on save, not UI-edited)
   timezone: string; // IANA, "" = system local
   watch_dir: string;
   dest_root: string; // single archive root

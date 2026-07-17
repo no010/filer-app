@@ -19,6 +19,17 @@ pub struct Config {
     pub member: String,
     /// Auto-start on boot (default true).
     pub autostart: bool,
+    /// Minimize to system tray instead of quitting when the window is
+    /// closed (default false). When true, the close button hides the
+    /// window; the app keeps running and can be restored / quit from the
+    /// tray icon.
+    pub minimize_to_tray: bool,
+    /// Whether the first-close "minimize to tray?" prompt has been shown
+    /// and the user's choice recorded (default false). Until this is true
+    /// AND minimize_to_tray is still false, the close button pops a native
+    /// Yes/No dialog once; the answer is persisted here + minimize_to_tray
+    /// and never asked again.
+    pub tray_prompted: bool,
     /// IANA timezone, e.g. "Asia/Shanghai". Empty = system local.
     pub timezone: String,
     /// Directory to watch for new downloads. Empty on first run.
@@ -68,6 +79,8 @@ impl Default for Config {
         Config {
             member: String::new(),
             autostart: true,
+            minimize_to_tray: false,
+            tray_prompted: false,
             timezone: String::new(),
             watch_dir: String::new(),
             dest_root: String::new(),

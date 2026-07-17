@@ -22,6 +22,8 @@ mod watcher;
 use std::path::PathBuf;
 use std::sync::Mutex;
 use tauri::{Emitter, Manager};
+use tauri::menu::{Menu, MenuItem};
+use tauri::tray::{MouseButton, TrayIconBuilder, TrayIconEvent};
 use tauri_plugin_autostart::MacosLauncher;
 
 use crate::config::Config;
@@ -57,10 +59,7 @@ fn register_context_menu_if_needed(exe: &str) {
 fn handle_import(app: tauri::AppHandle, path: String) {
     // Emit so the UI brings the window to front.
     let _ = app.emit("import-from-path", path.clone());
-    if let Some(win) = app.get_webview_window("main") {
-        let _ = win.show();
-        let _ = win.set_focus();
-    }
+    show_main_window(&app);
     let p = std::path::PathBuf::from(path);
     let app2 = app.clone();
     tauri::async_runtime::spawn(async move {
@@ -68,6 +67,81 @@ fn handle_import(app: tauri::AppHandle, path: String) {
         std::thread::sleep(std::time::Duration::from_secs(1));
         let _ = watcher::process_path(app2, p).await;
     });
+}
+
+/// Bring the main window back from the tray: unminimize, show, focus.
+/// Shared by the tray menu "显示", tray-icon click, and `--import`.
+fn show_main_window(app: &tauri::AppHandle) {
+    if let Some(win) = app.get_webview_window("main") {
+        let _ = win.unminimize();
+        let _ = win.show();
+        let _ = win.set_focus();
+    }
+}
+
+/// Build the system-tray icon + menu (显示 / 退出). Only created once at
+/// setup; the icon stays for the app lifetime. The window close button is
+/// intercepted separately in `on_window_event` per the minimize_to_tray
+/// setting.
+fn build_tray(app: &tauri::AppHandle) -> tauri::Result<()> {
+    let menu = Menu::with_items(app, &[
+        &MenuItem::with_id(app, "show", "显示 filer", true, None::<&str>)?,
+        &MenuItem::with_id(app, "quit", "退出 filer", true, None::<&str>)?,
+    ])?;
+    let icon = app.default_window_icon().cloned()
+        .expect("default window icon is bundled at build time");
+    TrayIconBuilder::with_id("main-tray")
+        .icon(icon)
+        .tooltip("filer 下载整理")
+        .menu(&menu)
+        .show_menu_on_left_click(false)
+        .on_tray_icon_event(|tray, event| {
+            // Left-click the icon → restore the window (right-click opens the menu).
+            if let TrayIconEvent::Click { button: MouseButton::Left, .. } = event {
+                show_main_window(tray.app_handle());
+            }
+        })
+        .build(app)?;
+    Ok(())
+}
+
+/// Pop the one-time "minimize to tray?" native dialog on first close. Yes
+/// (default) → persist minimize_to_tray=true and hide the window to the
+/// tray; No → persist false and exit. Either way `tray_prompted` is set so
+/// the question is never asked again; the user can still change the choice
+/// later in 设置.
+fn prompt_tray_choice(app: tauri::AppHandle) {
+    use tauri_plugin_dialog::{DialogExt, MessageDialogButtons, MessageDialogKind};
+    app.dialog()
+        .message(
+            "关闭 filer 窗口时，把它最小化到系统托盘？\n\n\
+             是 — 隐藏到托盘，后台继续监听下载并自动归档（右键托盘「显示/退出」）。\n\
+             否 — 直接退出 filer。"
+        )
+        .title("最小化到系统托盘？")
+        .buttons(MessageDialogButtons::YesNo)
+        .kind(MessageDialogKind::Info)
+        .show(move |yes| {
+            // Persist the choice + mark prompted, so this is asked only once.
+            {
+                let state = app.state::<AppState>();
+                if let Ok(mut cfg) = state.load_cfg() {
+                    cfg.minimize_to_tray = yes;
+                    cfg.tray_prompted = true;
+                    let _ = cfg.save(state.cfg_path());
+                }
+            }
+            // Notify the frontend so its cached config (and the Settings
+            // checkbox) reflects the choice just persisted by the prompt.
+            let _ = app.emit("config-updated", ());
+            if yes {
+                if let Some(win) = app.get_webview_window("main") {
+                    let _ = win.hide();
+                }
+            } else {
+                app.exit(0);
+            }
+        });
 }
 
 /// App-wide state: config file path + lazily-opened SQLite store.
@@ -122,6 +196,10 @@ pub fn run() {
                 let _ = if cfg.autostart { mgr.enable() } else { mgr.disable() };
             }
 
+            // System tray (显示 / 退出). The close-to-tray behavior is decided
+            // live in `on_window_event` from the current minimize_to_tray setting.
+            build_tray(app.handle())?;
+
             // Start the download-dir watcher (no-op until watch_dir is set).
             // Manage it so Tauri owns the handle for the app lifetime (dropping
             // the handle signals shutdown, so we must not let it drop here).
@@ -148,6 +226,38 @@ pub fn run() {
                 }
             }
             Ok(())
+        })
+        // Close-to-tray. Behavior is decided live from config on each close:
+        //   minimize_to_tray=true              → hide to tray (prevent close).
+        //   minimize_to_tray=false && !prompted → first close ever: pop a native
+        //     Yes/No dialog once (default Yes = minimize). Persist the choice
+        //     (minimize_to_tray + tray_prompted) so it's never asked again.
+        //   minimize_to_tray=false && prompted  → quit (normal close).
+        .on_window_event(|window, event| {
+            if let tauri::WindowEvent::CloseRequested { api, .. } = event {
+                let app = window.app_handle();
+                let cfg = app.state::<AppState>().load_cfg().ok();
+                let minimize = cfg.as_ref().map(|c| c.minimize_to_tray).unwrap_or(false);
+                let prompted = cfg.as_ref().map(|c| c.tray_prompted).unwrap_or(false);
+
+                if minimize {
+                    api.prevent_close();
+                    let _ = window.hide();
+                } else if !prompted {
+                    // First close on a fresh install: ask once, default = tray.
+                    api.prevent_close();
+                    prompt_tray_choice(app.clone());
+                }
+                // else: prompted && !minimize → let the close proceed (quit).
+            }
+        })
+        // Tray menu: 显示 → restore window; 退出 → exit.
+        .on_menu_event(|app, event| {
+            match event.id().as_ref() {
+                "show" => show_main_window(app),
+                "quit" => app.exit(0),
+                _ => {}
+            }
         })
         .invoke_handler(tauri::generate_handler![
             commands::ping,

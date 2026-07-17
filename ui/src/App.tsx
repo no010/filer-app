@@ -3,7 +3,7 @@ import { getCurrentWebview } from "@tauri-apps/api/webview";
 import { check as checkUpdate, type Update } from "@tauri-apps/plugin-updater";
 import { relaunch } from "@tauri-apps/plugin-process";
 import type { Config, Record as Rec } from "./types";
-import { countStale, getRecord, importPath, loadConfig, onAutoFilePrompt, onItemUpdated, onNewInboxItem, onProcessError } from "./api";
+import { countStale, getRecord, importPath, loadConfig, onAutoFilePrompt, onConfigUpdated, onItemUpdated, onNewInboxItem, onProcessError } from "./api";
 import { Inbox } from "./components/Inbox";
 import { History } from "./components/History";
 import { Review } from "./components/Review";
@@ -46,6 +46,9 @@ export default function App() {
       const name = p.path ? p.path.replace(/^.*[\\/]/, "") : "";
       setToast(`${name}: ${p.message}`);
     });
+    // Config changed on the Rust side (first-close tray prompt) → reload so
+    // the Settings checkbox stays in sync with the persisted choice.
+    const un5 = onConfigUpdated(() => { loadConfig().then(setCfg).catch(() => {}); });
     // Drag-and-drop files onto the window → import each into the inbox.
     let unDrop: (() => void) | undefined;
     getCurrentWebview().onDragDropEvent((e: any) => {
@@ -62,6 +65,7 @@ export default function App() {
       un2.then((fn) => fn()).catch(() => {});
       un3.then((fn) => fn()).catch(() => {});
       un4.then((fn) => fn()).catch(() => {});
+      un5.then((fn) => fn()).catch(() => {});
       unDrop?.();
     };
   }, []);

@@ -70,6 +70,10 @@ export function onAutoFilePrompt(cb: (id: number) => void): Promise<UnlistenFn> 
 export function onItemUpdated(cb: (id: number) => void): Promise<UnlistenFn> {
   return listen<number>("item-updated", (e) => cb(e.payload));
 }
+/** Config mutated on the Rust side (e.g. the first-close tray prompt) — reload it. */
+export function onConfigUpdated(cb: () => void): Promise<UnlistenFn> {
+  return listen("config-updated", () => cb());
+}
 
 export interface ScanProgress { processed: number; total: number; added: number; }
 export function onScanProgress(cb: (p: ScanProgress) => void): Promise<UnlistenFn> {

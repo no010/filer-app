@@ -137,6 +137,15 @@ export function SettingsModal(props: {
               开机自动启动
             </label>
             <label className="mt-2 flex items-start gap-2 text-xs text-slate-600">
+              <input type="checkbox" checked={cfg.minimize_to_tray}
+                     onChange={(e) => set({ minimize_to_tray: e.target.checked })}
+                     className="mt-0.5" />
+              <span>
+                关闭窗口时最小化到系统托盘<br/>
+                <span className="text-slate-400">首次点关闭会询问一次（默认最小化到托盘，可取消即退出）；之后按此设置走，可随时改</span>
+              </span>
+            </label>
+            <label className="mt-2 flex items-start gap-2 text-xs text-slate-600">
               <input type="checkbox" checked={cfg.auto_file}
                      onChange={(e) => set({ auto_file: e.target.checked })} className="mt-0.5" />
               <span>
