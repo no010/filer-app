@@ -14,13 +14,29 @@ name: release
 on:
   push:
     tags: ["v*"]
+  release:
+    types: [published]
   workflow_dispatch:
 
 permissions:
   contents: write   # needed by tauri-action to create the Release + upload assets
 
 jobs:
+  # Fail fast on a tag push if the tag doesn't match the version in
+  # tauri.conf.json / Cargo.toml / package.json — a mismatch silently breaks
+  # the signed updater manifest (happened once: tag vs version drift).
+  version-guard:
+    runs-on: ubuntu-22.04
+    if: github.event_name != 'release'
+    steps:
+      - uses: actions/checkout@v5
+      - name: Check tag matches manifest versions
+        # Only pass the tag when this run was actually triggered by one
+        # (workflow_dispatch runs check manifest consistency only).
+        run: node scripts/check-version-sync.mjs ${{ github.ref_type == 'tag' && github.ref_name || '' }}
+
   build:
+    needs: version-guard
     strategy:
       fail-fast: false
       matrix:
@@ -33,6 +49,9 @@ jobs:
             args: ""
 
     runs-on: ${{ matrix.platform }}
+    # Skip the build matrix when triggered by `release: published` —
+    # the assets already exist from the tag-push run.
+    if: github.event_name != 'release'
     steps:
       - uses: actions/checkout@v5
 
@@ -101,3 +120,28 @@ jobs:
           # can find the newest release.
           updaterJsonPreferNsis: true
           args: ${{ matrix.args }}
+
+  # ── WinGet ─────────────────────────────────────────────────────────
+  # Runs only when a GitHub Release is *published* (not on draft creation).
+  # Submits the NSIS installer to the winget-pkgs community repo via PR.
+  # Requires a repo secret: WINGET_TOKEN (GitHub PAT with public_repo scope).
+  # Skip if the secret is missing (e.g. first-time setup).
+  winget:
+    name: Submit to WinGet
+    runs-on: windows-latest
+    if: github.event_name == 'release' && github.event.action == 'published'
+    steps:
+      - name: Download wingetcreate
+        run: iwr https://aka.ms/wingetcreate/latest -OutFile wingetcreate.exe
+        shell: pwsh
+
+      - name: Submit to WinGet
+        run: |
+          $version = '${{ github.ref_name }}' -replace '^v', ''
+          $exeUrl = "https://github.com/${{ github.repository }}/releases/download/${{ github.ref_name }}/filer_$($version)_x64-setup.exe"
+          .\wingetcreate.exe update com.filer.app `
+            --version $version `
+            --urls $exeUrl `
+            --token ${{ secrets.WINGET_TOKEN }} `
+            --submit
+        shell: pwsh
