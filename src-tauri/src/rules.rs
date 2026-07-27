@@ -186,7 +186,10 @@ mod tests {
         };
         let cfg = cfg_with_root("D:\\Filer");
         let s = build_suggestion(&rule, &cfg, &pdf_meta("ST"), "STM32F103.pdf");
-        assert_eq!(s.dest_dir, "D:\\Filer\\Datasheets\\ST");
+        // Build the expected value via Path::join too — the separator it inserts
+        // is platform-native (`/` on Linux CI, `\` on Windows).
+        let expected = std::path::Path::new("D:\\Filer").join("Datasheets\\ST");
+        assert_eq!(s.dest_dir, expected.to_string_lossy().to_string());
         assert_eq!(s.filename, "STM32F103.pdf");
         assert_eq!(s.action, "move");
         assert_eq!(s.category, "Datasheet");
@@ -204,7 +207,9 @@ mod tests {
         let cfg = cfg_with_root("D:\\Filer");
         let m = pdf_meta("");
         let s = build_suggestion(&rule, &cfg, &m, "weird.pdf");
-        assert_eq!(s.dest_dir, "D:\\Filer\\Datasheets\\Unknown");
+        // Platform-native join, same as build_suggestion_joins_dest_root.
+        let expected = std::path::Path::new("D:\\Filer").join("Datasheets\\Unknown");
+        assert_eq!(s.dest_dir, expected.to_string_lossy().to_string());
     }
 
     #[test]
