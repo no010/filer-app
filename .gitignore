@@ -10,3 +10,8 @@ gen/
 # Tauri updater private key + password backup (DO NOT commit)
 src-tauri/filer-updater.key
 src-tauri/filer-updater.key.pw
+
+# Local WinGet submission workspace (clone of microsoft/winget-pkgs +
+# generated manifest copies) — experiment artifacts, never commit
+winget-pkgs/
+manifests/

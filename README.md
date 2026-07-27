@@ -38,8 +38,9 @@ Tauri 2 (Rust) + React 18 + Vite 8 + TypeScript 5.6 + Tailwind 3.4。SQLite（`r
 ## 开发
 
 ```bash
-cd apps/filer/ui && npm install
+cd ui && npm install
 cd ../src-tauri && cargo check
+cargo test   # 运行 Rust 核心单元测试（CI 每次 push 也会跑，见 .github/workflows/check.yml）
 # 端到端开发运行：
 cd ../ui && npm run tauri dev
 ```
